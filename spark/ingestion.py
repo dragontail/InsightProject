@@ -41,6 +41,14 @@ def configureSpark(credentials):
 
 	return sc
 
+# helper function to map the RDD based on search terms
+def count(searchTerms, rddLine):
+	occurrences = dict.fromkeys(searchTerms, 0)
+
+	for s in searchTerms:
+		occurrences[s] = rddLine.count(s)
+
+	return occurrences
 
 def main():
 	credentials = readFile("../credentials.txt")
@@ -56,7 +64,25 @@ def main():
 
 	januaryFiles = directory.collect()
 
-	print(januaryFiles)
+	numberToRead = 1
+
+	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-TARGET-URI:")
+
+	files = "s3://commoncrawl/" + str(januaryFiles[0])
+	# filePaths = []
+	# for i in range(numberToRead):
+	# 	filePaths.append("s3://commoncrawl/" + januaryFiles[i])
+		
+	# # gather filepaths together
+	# files = ",".join(filePaths)
+	
+	search = ["test", "example", "attempt", "word"]
+	rdd = sc.textFile(files)
+
+	pageFrequencies = rdd.map(lambda line: count(search, line))
+
+	print(pageFrequencies.first())
+
 
 if __name__ == "__main__":
     main()
