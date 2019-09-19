@@ -3,9 +3,12 @@ import sys
 from pyspark import SparkContext, SparkConf
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import *
+from collections import OrderedDict
 
 # gather lines from the corresponding file
-def readFile(filename):
+#	filename: string of the name of the file
+#	return: a list of lines from the file
+def readFile(filename: str):
 	try:
 		file = open(filename, "r")
 	except IOError:
@@ -20,11 +23,12 @@ def readFile(filename):
 
 
 # create a Spark Context with the proper Spark Configurations
-def configureSpark(credentials):
-	bucketName = credentials[0]
-	accessKey = credentials[1]
-	secretKey = credentials[2]
-	masterNode = credentials[3]
+#	credentials: a list of the AWS credentials
+#	return: a SparkContext object with configurations determined by credentials
+def configureSpark(credentials) -> SparkContext:
+	accessKey = credentials[0]
+	secretKey = credentials[1]
+	masterNode = credentials[2]
 
 	region = "s3.us-east-1.amazonaws.com"
 
@@ -41,14 +45,27 @@ def configureSpark(credentials):
 
 	return sc
 
-# helper function to map the RDD based on search terms
-def count(searchTerms, rddLine):
+
+# helper function to map the RDD 
+# 	rddLine: a string of the current webpage's contents
+#	searchTerms: a list of words to look for within rddLine
+#	return: a list of tuples of the format
+#			( 
+#				date, 	 -> the date
+#				webpage, -> the URL of the website
+#				word, 	 -> the corresponding search term
+#				count 	 -> the frequency of said word
+#			)
+def count(searchTerms, rddLine: str):
 	occurrences = dict.fromkeys(searchTerms, 0)
+	webpage = rddLine.split("\r\n")[0]
+	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
 
 	for s in searchTerms:
 		occurrences[s] = rddLine.count(s)
 
-	return occurrences
+	return [(date, webpage, k, v) for k, v in occurrences.items()]
+
 
 def main():
 	credentials = readFile("../credentials.txt")
@@ -64,25 +81,31 @@ def main():
 
 	januaryFiles = directory.collect()
 
-	numberToRead = 1
+	numberToRead = 3
 
-	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-TARGET-URI:")
+	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-Target-URI: ")
 
-	files = "s3://commoncrawl/" + str(januaryFiles[0])
-	# filePaths = []
-	# for i in range(numberToRead):
-	# 	filePaths.append("s3://commoncrawl/" + januaryFiles[i])
-		
-	# # gather filepaths together
-	# files = ",".join(filePaths)
+	search = ["cat", "dog", "bird", "fish"]
+	columns = ["date", "webpage", "word", "frequency"]
+
+	filePaths = []
+
+	for i in range(numberToRead):
+		filePaths.append("s3://commoncrawl/" + januaryFiles[i])
+
+	files = ",".join(filePaths)
 	
-	search = ["test", "example", "attempt", "word"]
 	rdd = sc.textFile(files)
 
 	pageFrequencies = rdd.map(lambda line: count(search, line))
 
-	print(pageFrequencies.first())
+	frequencies = pageFrequencies.collect()
+	frequencies = [item for sublist in frequencies for item in sublist]
 
+	df = sc.parallelize(frequencies).toDF(columns)
+
+	df.show(truncate = False)
+	print("\n\n\n\n")
 
 if __name__ == "__main__":
     main()
