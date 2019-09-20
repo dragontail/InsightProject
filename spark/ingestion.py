@@ -4,6 +4,7 @@ from pyspark import SparkContext, SparkConf
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import *
 from collections import OrderedDict
+import psycopg2
 
 # gather lines from the corresponding file
 #	filename: string of the name of the file
@@ -67,6 +68,43 @@ def count(searchTerms, rddLine: str):
 	return [(date, webpage, k, v) for k, v in occurrences.items()]
 
 
+# once we have our data from the files, store it into PostgreSQL database
+#	df: the dataframe containing the frequencies of words
+#	return: 1 for success, 0 for failure
+def databaseStore(df):
+	postgresCredentials = readFile("../database.txt")
+
+	host = postgresCredentials[0]
+	database = postgresCredentials[1]
+	password = postgresCredentials[2]
+
+	connection = psycopg2.connect(
+			host = host,
+			database = database,
+			user = "postgres",
+			password = password
+		)
+
+	cursor = connection.cursor()
+
+	for line in df:
+		query = """INSERT INTO frequencies (time, webpage, word, frequency)
+				VALUES ('{}', '{}', '{}', {});
+				""".format(line[0], line[1], line[2], line[3])
+
+		try:
+			cursor.execute(query)
+		except Exception as e:
+			print("There was an error trying to execute query: ", e.message)
+			return 0
+
+	connection.commit()
+	cursor.close()
+	connection.close()
+
+	return 1
+
+
 def main():
 	credentials = readFile("../credentials.txt")
 
@@ -86,7 +124,7 @@ def main():
 	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-Target-URI: ")
 
 	search = ["cat", "dog", "bird", "fish"]
-	columns = ["date", "webpage", "word", "frequency"]
+	columns = ["time", "webpage", "word", "frequency"]
 
 	filePaths = []
 
@@ -102,7 +140,9 @@ def main():
 	frequencies = pageFrequencies.collect()
 	frequencies = [item for sublist in frequencies for item in sublist]
 
-	df = sc.parallelize(frequencies).toDF(columns)
+	databaseStore(frequencies[4:20])
+
+	df = sc.parallelize(frequencies[4:20]).toDF(columns)
 
 	df.show(truncate = False)
 	print("\n\n\n\n")
