@@ -1,4 +1,5 @@
 credentials.txt
 database.txt
 database/
-spark/words_alpha.txt
+spark/*.txt
+spark/spell.py

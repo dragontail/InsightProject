@@ -1,9 +1,11 @@
 import os
 import sys
+import re
 from pyspark import SparkContext, SparkConf
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import *
-from collections import OrderedDict
+from collections import OrderedDict, Counter
+from itertools import islice
 import psycopg2
 
 # gather lines from the corresponding file
@@ -62,11 +64,48 @@ def count(searchTerms, rddLine: str):
 	webpage = rddLine.split("\r\n")[0]
 	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
 
+	words = re.split(" \n", rddLine)
+
+	# for word in words:
+	# 	if word in occurrences and word in searchTerms:
+	# 		occurrences[word] += 1
+	# 	elif word in searchTerms:
+	# 		occurrences[word] = 1
+
 	for s in searchTerms:
 		occurrences[s] = rddLine.count(s)
 
 	return [(date, webpage, k, v) for k, v in occurrences.items()]
 
+
+# version 2.0 of the helper function to map the RDD
+#	rddLine: a string of the current webpage's contents
+#	dictionary: a dictionary of words in the english dictionary
+#	stopWords: a dictionary of stop words that should be ignored
+#	return: a list of tuples of the format:
+#			( 
+#				date, 	 -> the date
+#				webpage, -> the URL of the website
+#				word, 	 -> a word not found in the dictionary
+#				count 	 -> the frequency of said word
+#			)
+def count2(dictionary, stopWords, rddLine: str):
+	webpage = rddLine.split("\r\n")[0].replace("'", "")
+
+	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
+
+	words = re.split("\W+", rddLine)
+
+	occurrences = {}
+
+	for word in words:
+		if word.lower() not in stopWords and word.lower() in dictionary:
+			if word in occurrences:
+				occurrences[word] += 1
+			else:
+				occurrences[word] = 1
+
+	return [(date, webpage, k, v) for k, v in occurrences.items()]
 
 # once we have our data from the files, store it into PostgreSQL database
 #	df: the dataframe containing the frequencies of words
@@ -105,21 +144,16 @@ def databaseStore(df):
 	return 1
 
 
-def main():
-	credentials = readFile("../credentials.txt")
+# perform the collecting of the text files per month
+#	sc: the SparkContext that will be performing the operations
+#	monthlyPaths: the URL that leads to the corresponding month's files
+#	dictionary: a dictionary of english words
+#	stopWords: a list of stop words to ignore
+def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
+	directory = sc.textFile(monthlyPaths)
+	monthlyFiles = directory.collect()
 
-	sc = configureSpark(credentials)
-	spark = SparkSession.builder.appName("test").getOrCreate()
-
-	monthlyPaths = readFile("paths.config")
-	januaryPaths = monthlyPaths[0]
-
-	# Read file to determine paths where the files are located
-	directory = sc.textFile(januaryPaths)
-
-	januaryFiles = directory.collect()
-
-	numberToRead = 3
+	numberToRead = 1
 
 	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-Target-URI: ")
 
@@ -129,23 +163,39 @@ def main():
 	filePaths = []
 
 	for i in range(numberToRead):
-		filePaths.append("s3://commoncrawl/" + januaryFiles[i])
+		filePaths.append("s3://commoncrawl/" + monthlyFiles[i])
 
 	files = ",".join(filePaths)
-	
 	rdd = sc.textFile(files)
 
-	pageFrequencies = rdd.map(lambda line: count(search, line))
+	# pageFrequencies = rdd.map(lambda line: count(search, line))
+	pageFrequencies = rdd.map(lambda line: count2(dictionary, stopWords, line))
 
 	frequencies = pageFrequencies.collect()
 	frequencies = [item for sublist in frequencies for item in sublist]
 
-	databaseStore(frequencies[4:20])
+	# databaseStore(frequencies)
 
-	df = sc.parallelize(frequencies[4:20]).toDF(columns)
+	# df = sc.parallelize(frequencies).toDF(columns)
 
-	df.show(truncate = False)
-	print("\n\n\n\n")
+	# df.show(truncate = False)
+	# print("\n\n\n\n")	
+
+
+def main():
+	credentials = readFile("../credentials.txt")
+
+	sc = configureSpark(credentials)
+	spark = SparkSession.builder.appName("test").getOrCreate()
+
+	monthlyPaths = readFile("paths.config")
+	dictionaryWords = {line : 0 for line in readFile("words_alpha.txt")}
+	stopWords = {line : 0 for line in readFile("stop_words.txt")}
+
+	monthlyReading(sc, monthlyPaths[0], dictionaryWords, stopWords)
+
+	# for i in range(len(monthlyPaths)):
+	# 	monthlyReading(sc, monthlyPaths[i], dictionaryWords)
 
 if __name__ == "__main__":
     main()
