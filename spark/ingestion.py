@@ -4,6 +4,7 @@ import re
 from pyspark import SparkContext, SparkConf
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import *
+from pyspark.sql import DataFrameWriter
 from collections import OrderedDict, Counter
 from itertools import islice
 import psycopg2
@@ -22,6 +23,7 @@ def readFile(filename: str):
 	for line in file.readlines():
 		lines.append(''.join(line.split()))
 
+	file.close()
 	return lines
 
 
@@ -44,7 +46,8 @@ def configureSpark(credentials) -> SparkContext:
 	sc._jsc.hadoopConfiguration().set("fs.s3.awsAccessKeyId", accessKey)
 	sc._jsc.hadoopConfiguration().set("fs.s3.awsSecretAccessKey", secretKey)
 	sc._jsc.hadoopConfiguration().set("fs.s3.endpoint", region)
-	sc._jsc.hadoopConfiguration().set("fs.s3.impl", "org.apache.hadoop.fs.s3native.NativeS3FileSystem")
+	sc._jsc.hadoopConfiguration().set("fs.s3.impl",
+	 "org.apache.hadoop.fs.s3native.NativeS3FileSystem")
 
 	return sc
 
@@ -64,19 +67,14 @@ def count(searchTerms, rddLine: str):
 	webpage = rddLine.split("\r\n")[0]
 	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
 
-	words = re.split(" \n", rddLine)
-
-	# for word in words:
-	# 	if word in occurrences and word in searchTerms:
-	# 		occurrences[word] += 1
-	# 	elif word in searchTerms:
-	# 		occurrences[word] = 1
+	words = re.split("\W+", rddLine)
+	totalWords = len(words)
 
 	for s in searchTerms:
 		occurrences[s] = rddLine.count(s)
 
-	return [(date, webpage, k, v) for k, v in occurrences.items()]
-
+	return [(date, webpage, k, v, "{:0.3f}".format(v / totalWords * 100)) 
+			for k, v in occurrences.items()]
 
 # version 2.0 of the helper function to map the RDD
 #	rddLine: a string of the current webpage's contents
@@ -91,10 +89,13 @@ def count(searchTerms, rddLine: str):
 #			)
 def count2(dictionary, stopWords, rddLine: str):
 	webpage = rddLine.split("\r\n")[0].replace("'", "")
+	if webpage == "WARC/1.0":
+		return []
 
 	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
 
 	words = re.split("\W+", rddLine)
+	totalWords = len(words)
 
 	occurrences = {}
 
@@ -105,14 +106,17 @@ def count2(dictionary, stopWords, rddLine: str):
 			else:
 				occurrences[word] = 1
 
-	return [(date, webpage, k, v) for k, v in occurrences.items()]
+
+	return [(date, webpage, k, v, "{:0.3f}".format(v / totalWords * 100)) 
+			for k, v in occurrences.items()]
+
 
 # once we have our data from the files, store it into PostgreSQL database
 #	df: the dataframe containing the frequencies of words
 #	return: 1 for success, 0 for failure
 def databaseStore(df):
 	postgresCredentials = readFile("../database.txt")
-
+               
 	host = postgresCredentials[0]
 	database = postgresCredentials[1]
 	password = postgresCredentials[2]
@@ -126,16 +130,16 @@ def databaseStore(df):
 
 	cursor = connection.cursor()
 
-	for line in df:
-		query = """INSERT INTO frequencies (time, webpage, word, frequency)
-				VALUES ('{}', '{}', '{}', {});
-				""".format(line[0], line[1], line[2], line[3])
+	query = """
+			INSERT INTO frequencies (time, webpage, word, frequency, ratio)
+			VALUES ('{}', '{}', '{}', {}, {});
+			""".format(df.time, df.webpage, df.word, df.frequency, df.ratio)
 
-		try:
-			cursor.execute(query)
-		except Exception as e:
-			print("There was an error trying to execute query: ", e.message)
-			return 0
+	try:
+		cursor.execute(query)
+	except Exception as e:
+		print("There was an error trying to execute query: ", e.message)
+		return 0
 
 	connection.commit()
 	cursor.close()
@@ -144,21 +148,43 @@ def databaseStore(df):
 	return 1
 
 
+# version 2.0 of the databaseStore function
+def databaseStore2(df):
+	postgresCredentials = readFile("../database.txt")
+	host = postgresCredentials[0]
+	database = postgresCredentials[1]
+	password = postgresCredentials[2]
+
+	url = "postgresql://{}/{}".format(host, database)
+	properties = {
+		"user": "postgres",
+		"password": password,
+		"driver": "org.postgresql.Driver"
+	}
+
+	df.write.option("batchSize", 1000).jdbc(
+		url = "jdbc:{}".format(url),
+		table = "frequencies",
+		mode = "append",
+		properties = properties)
+
+
 # perform the collecting of the text files per month
 #	sc: the SparkContext that will be performing the operations
 #	monthlyPaths: the URL that leads to the corresponding month's files
 #	dictionary: a dictionary of english words
-#	stopWords: a list of stop words to ignore
+#	stopWords: a dictionary of stop words to ignore
 def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 	directory = sc.textFile(monthlyPaths)
 	monthlyFiles = directory.collect()
 
 	numberToRead = 1
 
-	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter", "WARC-Target-URI: ")
+	sc._jsc.hadoopConfiguration().set("textinputformat.record.delimiter",
+									"WARC-Target-URI: ")
 
 	search = ["cat", "dog", "bird", "fish"]
-	columns = ["time", "webpage", "word", "frequency"]
+	columns = ["time", "webpage", "word", "frequency", "ratio"]
 
 	filePaths = []
 
@@ -168,22 +194,23 @@ def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 	files = ",".join(filePaths)
 	rdd = sc.textFile(files)
 
-	# pageFrequencies = rdd.map(lambda line: count(search, line))
-	pageFrequencies = rdd.map(lambda line: count2(dictionary, stopWords, line))
+	# pageFrequencies = rdd.flatMap(lambda line: count(search, line))
+	pageFrequencies = rdd.flatMap(lambda line: count2(dictionary, stopWords, line))
 
-	frequencies = pageFrequencies.collect()
-	frequencies = [item for sublist in frequencies for item in sublist]
+	df = pageFrequencies.toDF(columns)
+	# databaseStore2(df)
 
-	# databaseStore(frequencies)
-
-	# df = sc.parallelize(frequencies).toDF(columns)
-
-	# df.show(truncate = False)
-	# print("\n\n\n\n")	
+	df.show(truncate = False)
+	print("\n\n\n\n")	
 
 
 def main():
+	if len(sys.argv) == 1:
+		print("There needs to be an index for the month.")
+		return
+
 	credentials = readFile("../credentials.txt")
+	monthIndex = int(sys.argv[1])
 
 	sc = configureSpark(credentials)
 	spark = SparkSession.builder.appName("test").getOrCreate()
@@ -192,10 +219,7 @@ def main():
 	dictionaryWords = {line : 0 for line in readFile("words_alpha.txt")}
 	stopWords = {line : 0 for line in readFile("stop_words.txt")}
 
-	monthlyReading(sc, monthlyPaths[0], dictionaryWords, stopWords)
-
-	# for i in range(len(monthlyPaths)):
-	# 	monthlyReading(sc, monthlyPaths[i], dictionaryWords)
+	monthlyReading(sc, monthlyPaths[monthIndex], dictionaryWords, stopWords)
 
 if __name__ == "__main__":
     main()
