@@ -1,10 +1,13 @@
 import os
 import sys
 import re
-from pyspark import SparkContext, SparkConf
+import io
+import pandas as pd
+from pyspark import SparkContext, SparkConf, SparkFiles
 from pyspark.sql.session import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql import DataFrameWriter
+from pyspark.sql.functions import to_timestamp
 from collections import OrderedDict, Counter
 from itertools import islice
 import psycopg2
@@ -12,7 +15,7 @@ import psycopg2
 # gather lines from the corresponding file
 #	filename: string of the name of the file
 #	return: a list of lines from the file
-def readFile(filename: str):
+def readFile(filename):
 	try:
 		file = open(filename, "r")
 	except IOError:
@@ -30,7 +33,7 @@ def readFile(filename: str):
 # create a Spark Context with the proper Spark Configurations
 #	credentials: a list of the AWS credentials
 #	return: a SparkContext object with configurations determined by credentials
-def configureSpark(credentials) -> SparkContext:
+def configureSpark(credentials):
 	accessKey = credentials[0]
 	secretKey = credentials[1]
 	masterNode = credentials[2]
@@ -62,9 +65,12 @@ def configureSpark(credentials) -> SparkContext:
 #				word, 	 -> the corresponding search term
 #				count 	 -> the frequency of said word
 #			)
-def count(searchTerms, rddLine: str):
+def count(searchTerms, rddLine):
 	occurrences = dict.fromkeys(searchTerms, 0)
 	webpage = rddLine.split("\r\n")[0]
+	if webpage == "WARC/1.0":
+		return []
+
 	date = rddLine.split("WARC-Date: ")[1].split("\r\n")[0]
 
 	words = re.split("\W+", rddLine)
@@ -87,7 +93,7 @@ def count(searchTerms, rddLine: str):
 #				word, 	 -> a word not found in the dictionary
 #				count 	 -> the frequency of said word
 #			)
-def count2(dictionary, stopWords, rddLine: str):
+def count2(dictionary, stopWords, rddLine):
 	webpage = rddLine.split("\r\n")[0].replace("'", "")
 	if webpage == "WARC/1.0":
 		return []
@@ -100,15 +106,15 @@ def count2(dictionary, stopWords, rddLine: str):
 	occurrences = {}
 
 	for word in words:
-		if word.lower() not in stopWords and word.lower() in dictionary:
+		word = word.lower()
+		if word not in stopWords and word in dictionary:
 			if word in occurrences:
 				occurrences[word] += 1
 			else:
 				occurrences[word] = 1
 
 
-	return [(date, webpage, k, v, "{:0.3f}".format(v / totalWords * 100)) 
-			for k, v in occurrences.items()]
+	return [(date, webpage[:100], k, v)	for k, v in occurrences.items()]
 
 
 # once we have our data from the files, store it into PostgreSQL database
@@ -159,10 +165,11 @@ def databaseStore2(df):
 	properties = {
 		"user": "postgres",
 		"password": password,
-		"driver": "org.postgresql.Driver"
+		"driver": "org.postgresql.Driver",
+		"stringtype": "unspecified"
 	}
 
-	df.write.option("batchSize", 1000).jdbc(
+	df.write.option("batchSize", 100000).jdbc(
 		url = "jdbc:{}".format(url),
 		table = "frequencies",
 		mode = "append",
@@ -184,7 +191,7 @@ def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 									"WARC-Target-URI: ")
 
 	search = ["cat", "dog", "bird", "fish"]
-	columns = ["time", "webpage", "word", "frequency", "ratio"]
+	columns = ["date", "webpage", "word", "frequency"]
 
 	filePaths = []
 
@@ -198,7 +205,8 @@ def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 	pageFrequencies = rdd.flatMap(lambda line: count2(dictionary, stopWords, line))
 
 	df = pageFrequencies.toDF(columns)
-	# databaseStore2(df)
+
+	databaseStore2(df)
 
 	df.show(truncate = False)
 	print("\n\n\n\n")	
