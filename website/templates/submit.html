@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+	<!-- <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js'></script> -->
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js'></script>
+
+
+	<title>WordWideWeb</title>
+	<style>
+		body {
+			background-color:#8fdbff;
+		}
+		#logo {
+			text-align:center;
+		}
+	</style>
+</head>
+
+<body>
+	<div id = "top">
+		<h1 id = "logo">WordWideWeb</h1>
+	</div>
+	<canvas id="line" width="600" height="400"></canvas>
+    <script>
+      	// draw line graph
+      	window.onload = function() {
+      		// line graph data
+	    	var colors = [
+	    		"rgba(0, 0, 220, 1)",
+	    		"rgba(252, 190, 3, 1)",
+	    		"rgba(173, 90, 224, 1)",
+	    		"rgba(182, 250, 22, 1)",
+	    	]
+	    	var fill = [ 
+	    		"rgba(0, 0, 220, 0)",
+	    		"rgba(252, 190, 3, 0)",
+	    		"rgba(173, 90, 224, 0)",
+	    		"rgba(182, 250, 22, 0)"
+	    	]
+
+	    	var lineData = {
+	        	labels : [
+	        		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	        		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+	        	],
+	        	datasets : [
+	        	{% for i in range(frequencies|length) %}
+	        		{
+	        			label : "{{ words[i] }}",
+	        			fillColor: fill[{{i}}],
+	                    strokeColor: colors[{{i}}],
+	                    pointColor: colors[{{i}}],
+	                    pointStrokeColor: "#fff",
+	                    pointHighlightStroke: colors[{{i}}],
+	        			data : [
+	        			{% for list in frequencies[i] %}
+	        				{{ list[1] }},
+	        			{% endfor %}
+	        			]
+	        		},
+	        	{% endfor %},
+	        	]
+	      	};
+	      	var options = {
+	        	scales: {
+		            yAxes: [{
+		            	ticks: {
+		            		beginAtZero: true
+		            	},
+		                scaleLabel: {
+		                    display: true,
+		                    labelString: 'Occurrences',
+	                    	fontSize: 20 
+			            }
+	            	}]            
+		        }
+	        };	
+	      	var ctx = document.getElementById("line").getContext("2d");
+	      	// var lineGraph = new Chart(ctx, {
+	      	// 	type: 'line',
+	      	// 	data: lineData,
+	      	// 	options: options
+	      	// });
+	      	var lineGraph = new Chart(ctx).Line(lineData, {    
+	        	scaleOverride: false,
+		        scaleSteps: 10,
+		        scaleStepWidth: Math.ceil({{ max }} / 10),
+		        scaleStartValue: Math.ceil({{ min }}),
+		        scaleShowVerticalLines: true,
+		        scaleShowGridLines : true,
+		        barShowStroke : true,
+		        scaleShowLabels: true,
+		        bezierCurve: false
+		    });
+	    }      	
+    </script>
+</body>
+
+</html>
