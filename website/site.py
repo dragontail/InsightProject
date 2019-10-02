@@ -1,12 +1,11 @@
 from flask import Blueprint, Flask, render_template, request
-import dash
-import dash_core_components as dcc 
-import dash_html_components as html
 import psycopg2
-import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
 import sys
+
+sys.path.insert(1, '../')
+
+from airflowjobs.monthly_process import schedule
 
 server = Flask(__name__)
 
@@ -29,7 +28,6 @@ def readFile(filename):
 
 
 databaseCredentials = readFile("../database.txt")
-
 host = databaseCredentials[1]
 database = databaseCredentials[2]
 password = databaseCredentials[3]
@@ -50,28 +48,54 @@ def default():
 # user submits their words
 @server.route('/submit', methods = ['GET', 'POST'])
 def submit():
-	words = request.form.getlist('words[]')
+	words = request.form.getlist('goodWords[]')
 
 	dictionaryWords = {line : 0 for line in readFile("../spark/words_alpha.txt")}
 	stopWords = {line : 0 for line in readFile("../spark/stop_words.txt")}
-	for word in words:
-		if word in stopWords or word not in dictionaryWords:
-			return "The following word cannot be used: {}".format(word)
 
-	print(words)
+	goodWords = []
+	badWords = []
 
 	cursor = connection.cursor()
+
+	for word in words:
+		query = '''
+		 	SELECT COUNT(*) FROM frequenciesthree WHERE word = '{}'
+		'''.format(word)
+
+		cursor.execute(query)
+		count = cursor.fetchall()[0][0]
+
+		if count > 0:
+			goodWords.append(word)
+		else:
+			badWords.append(word)
+
+		# if word.lower() not in dictionaryWords:
+		# 	badWords.append(word)
+		# elif word.lower() in dictionaryWords: 
+		# 	goodWords.append(word)
+
+	print(badWords)
+	print(goodWords)
+	if len(badWords) > 0:
+		cursor.close()
+		return render_template('submit.html', 
+			invalidWords = badWords, 
+			goodWords = goodWords)
+
 
 	wordFrequencies = []
 	largestValue = 0
 	smallestValue = sys.maxsize
 
-	for word in words:
+	for word in goodWords:
 		query = '''
-			SELECT to_char(to_timestamp(month::text, 'MM'), 'Mon'), SUM(f) AS frequency
+			SELECT to_char(to_timestamp(month::text, 'MM'), 'Mon'), \
+			 		SUM(f) AS frequency
 			FROM (
 				SELECT SUM(frequency) AS f, EXTRACT(MONTH FROM date) AS month
-				FROM frequenciestwo
+				FROM frequenciesthree
 				WHERE word = '{}'
 				GROUP BY EXTRACT(MONTH FROM date)
 			) AS test
@@ -93,9 +117,6 @@ def submit():
 
 	cursor.close()
 
-	# wordFrequencies = [item for sublist in wordFrequencies for item in sublist]
-	print(wordFrequencies)
-
 	largestValue = round(largestValue, 1 - len(str(largestValue)))
 
 	return render_template('submit.html', 
@@ -103,6 +124,17 @@ def submit():
 		frequencies = wordFrequencies,
 		max = largestValue,
 		min = smallestValue)
+
+
+# when the user chooses to schedule a new search job with their words
+@server.route('/schedule', methods = ['GET', 'POST'])
+def airflowScheduler():
+	words = request.form.getlist('badWords[]')
+	print(words)
+	schedule(words)
+
+	return render_template('schedule.html',
+		words = words)
 
 
 def main():

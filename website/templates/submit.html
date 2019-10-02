@@ -16,10 +16,19 @@
 	<title>WordWideWeb</title>
 	<style>
 		body {
-			background-color:#8fdbff;
 		}
 		#logo {
 			text-align:center;
+		}
+		#message {
+			margin-left: auto;
+			margin-right: auto;
+			width: 60%;
+		}
+		#legend {
+			position:fixed;
+			right: 10%;
+			bottom: 66%;
 		}
 	</style>
 </head>
@@ -28,23 +37,31 @@
 	<div id = "top">
 		<h1 id = "logo">WordWideWeb</h1>
 	</div>
-	<canvas id="line" width="600" height="400"></canvas>
-    <script>
+	<script>
       	// draw line graph
-      	window.onload = function() {
+      	function showGraph() {
       		// line graph data
 	    	var colors = [
-	    		"rgba(0, 0, 220, 1)",
-	    		"rgba(252, 190, 3, 1)",
-	    		"rgba(173, 90, 224, 1)",
-	    		"rgba(182, 250, 22, 1)",
-	    	]
+	    		"rgba(0, 0, 220, 1)",		// blue
+	    		"rgba(252, 190, 3, 1)",		// orange
+	    		"rgba(173, 90, 224, 1)",	// purple
+	    		"rgba(182, 250, 22, 1)",	// green
+	    		"rgba(242, 10, 180, 1)",	// pink
+	    		"rgba(64, 242, 255, 1)",	// cyan
+	    		"rgba(237, 199, 235, 1)",	// light pink
+	    		"rgba(255, 249, 79, 1)",	// yellow
+	    	];
+
 	    	var fill = [ 
 	    		"rgba(0, 0, 220, 0)",
 	    		"rgba(252, 190, 3, 0)",
 	    		"rgba(173, 90, 224, 0)",
-	    		"rgba(182, 250, 22, 0)"
-	    	]
+	    		"rgba(182, 250, 22, 0)",
+	    		"rgba(242, 10, 180, 0)",
+	    		"rgba(64, 242, 255, 0)",
+	    		"rgba(237, 199, 235, 0)",	
+	    		"rgba(255, 249, 79, 0)"
+	    	];
 
 	    	var lineData = {
 	        	labels : [
@@ -89,19 +106,79 @@
 	      	// 	data: lineData,
 	      	// 	options: options
 	      	// });
+
+
+		    var legend = document.getElementById("legend");
+		    {% for i in range(words|length) %}
+		    	var box = document.createElement("span");
+		    	box.innerText = "  ";
+		    	box.style.backgroundColor = colors[{{i}}];
+		    	box.style.padding = "5px"
+		    	var name = document.createElement("span");
+		    	name.innerText = "{{words[i]}}";
+		    	legend.appendChild(box);
+		    	legend.appendChild(name);
+		    	legend.appendChild(document.createElement("br"));
+		    	legend.appendChild(document.createElement("br"));
+		    {% endfor %}
+
 	      	var lineGraph = new Chart(ctx).Line(lineData, {    
 	        	scaleOverride: false,
 		        scaleSteps: 10,
 		        scaleStepWidth: Math.ceil({{ max }} / 10),
 		        scaleStartValue: Math.ceil({{ min }}),
+		        scaleEndValue: Math.ceil({{ max }} * 1.1),
 		        scaleShowVerticalLines: true,
 		        scaleShowGridLines : true,
 		        barShowStroke : true,
 		        scaleShowLabels: true,
 		        bezierCurve: false
 		    });
+
+		    // var legend = document.getElementById("legend").style.display = "inline";
 	    }      	
     </script>
+	{% if invalidWords is defined %}
+	<form action = "/submit" method = "POST">
+		<div id = "message">
+			The following words are not in the database right now: 
+			{% for i in range(invalidWords|length - 1) %} 
+				<span name = "badWords[]">{{ invalidWords[i] }},</span>
+			{% endfor %}
+				<span name = "badWords[]">{{ invalidWords[invalidWords|length - 1] }}</span>
+			<br />
+			{% if goodWords|length > 0 %}
+			The following words are good for querying:<br />
+			{% for i in range(goodWords|length - 1) %}
+				<input type = "text", style = "display:none;", name = "goodWords[]", value = "{{ goodWords[i] }}">
+				<span name = "goodWords[]">{{ goodWords[i] }},</span>
+			{% endfor %}
+				<input type = "text", style = "display:none;", name = "goodWords[]", value = "{{ goodWords[goodWords|length - 1] }}" />
+				<span name = "goodWords[]">{{ goodWords[goodWords|length - 1] }}</span>
+			<br />			
+			{% endif %}
+			What do you want to do about this?
+		</div>
+		{% if goodWords|length > 0 %}
+		<button id = "display" class = "btn btn-default" type = "submit">Show graph with valid words</button>
+		{% endif %}
+	</form>
+	<form action = "/schedule" method = "POST">
+		{% for i in range(invalidWords|length - 1) %} 
+			<input type = "text", style = "display:none;", name = "badWords[]", value = "{{ invalidWords[i] }}" />
+		{% endfor %}
+			<input type = "text", style = "display:none;", name = "badWords[]", value = "{{ invalidWords[invalidWords|length - 1] }}">
+			<br />
+		<button id = "schedule" class = "btn btn-default" type = "submit">Schedule job for new words</button>
+	</form>
+	{% else %}
+	<canvas id="line" width="600" height="400"></canvas>
+	<div id = "legend">
+	</div>
+	<script>
+		window.onload = showGraph();
+	</script>
+	{% endif %}
 </body>
 
 </html>

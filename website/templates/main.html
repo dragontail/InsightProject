@@ -14,7 +14,6 @@
 	<title>WordWideWeb</title>
 	<style>
 		body {
-			background-color:#8fdbff;
 		}
 		#logo {
 			text-align:center;
@@ -28,7 +27,9 @@
 			width:30%;
 		}
 		#buttons {
-			margin-top:10%;
+			position:fixed;
+			bottom: 10%;
+			left: 25%;
 			margin-left:auto;
 			margin-right:auto;
 			width:30%;
@@ -47,7 +48,7 @@
 	<form name = "words" action = "/submit" method = "POST">
 		<div id = "formarea">
 			<div id = "words">
-				<input type = "text" class = "form-control" name = "words[]" placeholder = "Word"/>
+				<input type = "text" class = "form-control" name = "goodWords[]" placeholder = "Word"/>
 			</div>
 			
 		</div>
@@ -64,8 +65,8 @@
 		    var maxField = 10; //Input fields increment limitation
 		    var addButton = $('#add'); //Add button selector
 		    var removeButton = $('#remove');
-		    var wrapper = $('#words'); //Input field wrapper
-		    var fieldHTML = '<input type="text" class = "form-control" name="words[]" placeholder = "Word"/>'; //New input field html 
+		    var wrapper = $('#words');
+		    var fieldHTML = '<input type="text" class = "form-control" name="goodWords[]" placeholder = "Word"/>'; //New input field html 
 		    var x = 1; //Initial field counter is 1
 		    
 		    //Once add button is clicked
@@ -84,12 +85,7 @@
 		    	}
 		    });
 
-		    //Once remove button is clicked
-		    $(wrapper).on('click', '#remove', function(e){
-		        e.preventDefault();
-		        $(this).parent('div').remove(); //Remove field html
-		        x--; //Decrement field counter
-		    });
+
 		});
 	</script>
 </body>
