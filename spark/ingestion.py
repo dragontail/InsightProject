@@ -160,7 +160,6 @@ def main():
 
 	if len(sys.argv) == 3:
 		word = {sys.argv[2] : 0 }
-		print(word)
 		monthlyReading(sc, monthlyPaths[monthIndex], word, stopWords)
 		return
 	elif len(sys.argv) == 2:

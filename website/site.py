@@ -6,6 +6,7 @@ import sys
 sys.path.insert(1, '../')
 
 from airflowjobs.monthly_process import schedule
+from airflowjobs.email import email
 
 server = Flask(__name__)
 
@@ -32,6 +33,9 @@ host = databaseCredentials[1]
 database = databaseCredentials[2]
 password = databaseCredentials[3]
 
+dictionaryWords = {line : 0 for line in readFile("../spark/words_alpha.txt")}
+stopWords = {line : 0 for line in readFile("../spark/stop_words.txt")}
+
 connection = psycopg2.connect(
 	host = host, 
 	database = database, 
@@ -50,15 +54,21 @@ def default():
 def submit():
 	words = request.form.getlist('goodWords[]')
 
-	dictionaryWords = {line : 0 for line in readFile("../spark/words_alpha.txt")}
-	stopWords = {line : 0 for line in readFile("../spark/stop_words.txt")}
-
 	goodWords = []
 	badWords = []
+	stops = []
 
 	cursor = connection.cursor()
 
+
 	for word in words:
+		if word == "":
+			continue
+			
+		if word in stopWords:
+			stops.append(word)
+			continue
+
 		query = '''
 		 	SELECT COUNT(*) FROM frequenciesthree WHERE word = '{}'
 		'''.format(word)
@@ -76,13 +86,14 @@ def submit():
 		# elif word.lower() in dictionaryWords: 
 		# 	goodWords.append(word)
 
-	print(badWords)
-	print(goodWords)
-	if len(badWords) > 0:
+	# print(badWords)
+	# print(goodWords)
+	if len(badWords) > 0 or len(stops) > 0:
 		cursor.close()
 		return render_template('submit.html', 
 			invalidWords = badWords, 
-			goodWords = goodWords)
+			goodWords = goodWords,
+			stopWords = stops)
 
 
 	wordFrequencies = []
@@ -130,8 +141,10 @@ def submit():
 @server.route('/schedule', methods = ['GET', 'POST'])
 def airflowScheduler():
 	words = request.form.getlist('badWords[]')
+	email = request.form.get('email')
+	print(email)
 	print(words)
-	schedule(words)
+	# schedule(words)
 
 	return render_template('schedule.html',
 		words = words)

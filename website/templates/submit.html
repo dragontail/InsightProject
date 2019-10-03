@@ -27,8 +27,12 @@
 		}
 		#legend {
 			position:fixed;
-			right: 10%;
-			bottom: 66%;
+			right: 25%;
+			top: 20%;
+		}
+		canvas {
+			position: relative;
+			left: 15%;
 		}
 	</style>
 </head>
@@ -50,6 +54,8 @@
 	    		"rgba(64, 242, 255, 1)",	// cyan
 	    		"rgba(237, 199, 235, 1)",	// light pink
 	    		"rgba(255, 249, 79, 1)",	// yellow
+	    		"rgba(0, 0, 0, 1)", 		// black
+	    		"rgba(222, 80, 78, 1)"		// red
 	    	];
 
 	    	var fill = [ 
@@ -60,7 +66,9 @@
 	    		"rgba(242, 10, 180, 0)",
 	    		"rgba(64, 242, 255, 0)",
 	    		"rgba(237, 199, 235, 0)",	
-	    		"rgba(255, 249, 79, 0)"
+	    		"rgba(255, 249, 79, 0)",
+	    		"rgba(0, 0, 0, 0)",
+	    		"rgba(222, 80, 78, 0)"
 	    	];
 
 	    	var lineData = {
@@ -111,7 +119,7 @@
 		    var legend = document.getElementById("legend");
 		    {% for i in range(words|length) %}
 		    	var box = document.createElement("span");
-		    	box.innerText = "  ";
+		    	box.innerText = "   ";
 		    	box.style.backgroundColor = colors[{{i}}];
 		    	box.style.padding = "5px"
 		    	var name = document.createElement("span");
@@ -134,28 +142,36 @@
 		        scaleShowLabels: true,
 		        bezierCurve: false
 		    });
-
-		    // var legend = document.getElementById("legend").style.display = "inline";
 	    }      	
     </script>
 	{% if invalidWords is defined %}
 	<form action = "/submit" method = "POST">
 		<div id = "message">
+			{% if invalidWords|length > 0 %}
 			The following words are not in the database right now: 
 			{% for i in range(invalidWords|length - 1) %} 
 				<span name = "badWords[]">{{ invalidWords[i] }},</span>
 			{% endfor %}
 				<span name = "badWords[]">{{ invalidWords[invalidWords|length - 1] }}</span>
 			<br />
+			{% endif %}
 			{% if goodWords|length > 0 %}
 			The following words are good for querying:<br />
 			{% for i in range(goodWords|length - 1) %}
-				<input type = "text", style = "display:none;", name = "goodWords[]", value = "{{ goodWords[i] }}">
+				<input type = "text" style = "display:none;" name = "goodWords[]" value = "{{ goodWords[i] }}">
 				<span name = "goodWords[]">{{ goodWords[i] }},</span>
 			{% endfor %}
-				<input type = "text", style = "display:none;", name = "goodWords[]", value = "{{ goodWords[goodWords|length - 1] }}" />
+				<input type = "text" style = "display:none;" name = "goodWords[]" value = "{{ goodWords[goodWords|length - 1] }}" />
 				<span name = "goodWords[]">{{ goodWords[goodWords|length - 1] }}</span>
 			<br />			
+			{% endif %}
+			{% if stopWords|length > 0 %}
+			<div id = "stopWords">
+				The following words are stop words and are not available for querying:
+			{% for i in range(stopWords|length) %}
+				{{ stopWords[i] }} 
+			{% endfor %}
+			</div>
 			{% endif %}
 			What do you want to do about this?
 		</div>
@@ -169,7 +185,12 @@
 		{% endfor %}
 			<input type = "text", style = "display:none;", name = "badWords[]", value = "{{ invalidWords[invalidWords|length - 1] }}">
 			<br />
-		<button id = "schedule" class = "btn btn-default" type = "submit">Schedule job for new words</button>
+		<div id = "message">
+			Schedule a job to search for these invalid words - enter an email and you will be notified when the job is done.
+			<br />
+		<input type = "email" name = "email" placeholder = "test@example.com" /><br />
+		<button id = "schedule" class = "btn btn-default" type = "submit">Schedule</button>
+		</div>
 	</form>
 	{% else %}
 	<canvas id="line" width="600" height="400"></canvas>
@@ -179,6 +200,11 @@
 		window.onload = showGraph();
 	</script>
 	{% endif %}
+	<form action = "/">
+		<div id = "message">
+			<button id = "back" class = "btn btn-default" href = "/">Go back</button>
+		</div>
+	</form>
 </body>
 
 </html>
