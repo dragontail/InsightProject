@@ -115,7 +115,6 @@
 	      	// 	options: options
 	      	// });
 
-
 		    var legend = document.getElementById("legend");
 		    {% for i in range(words|length) %}
 		    	var box = document.createElement("span");
@@ -140,7 +139,7 @@
 		        scaleShowGridLines : true,
 		        barShowStroke : true,
 		        scaleShowLabels: true,
-		        bezierCurve: false
+		        bezierCurve: true
 		    });
 	    }      	
     </script>
@@ -174,10 +173,11 @@
 			</div>
 			{% endif %}
 			What do you want to do about this?
+			<br />
+			{% if goodWords|length > 0 %}
+			<button id = "display" class = "btn btn-default" type = "submit">Show graph with valid words</button>
+			{% endif %}
 		</div>
-		{% if goodWords|length > 0 %}
-		<button id = "display" class = "btn btn-default" type = "submit">Show graph with valid words</button>
-		{% endif %}
 	</form>
 	<form action = "/schedule" method = "POST">
 		{% for i in range(invalidWords|length - 1) %} 

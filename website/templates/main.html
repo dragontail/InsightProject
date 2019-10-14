@@ -13,7 +13,8 @@
 
 	<title>WordWideWeb</title>
 	<style>
-		body {
+		div {
+			font-size: 4vw;
 		}
 		#logo {
 			text-align:center;
@@ -48,12 +49,12 @@
 	<form name = "words" action = "/submit" method = "POST">
 		<div id = "formarea">
 			<div id = "words">
-				<input type = "text" class = "form-control" name = "goodWords[]" placeholder = "Word"/>
+				<input onkeydown="return alphaOnly(event);" type = "text" class = "form-control" name = "goodWords[]" placeholder = "Word"/>
 			</div>
 			
 		</div>
 		<div id = "buttons">
-			<button id = "add" class = "btn btn-default" type = "button">Add a word (max 10)</button>
+			<button id = "add" class = "btn btn-default" type = "button">Add a word (max 5)</button>
 			<button id = "remove" class = "btn btn-default" type = "button">Remove a word (min 1)</button>
 			<input id = "submit" type = "submit" class = "btn btn-default" />
 		</div>
@@ -62,11 +63,11 @@
 
 	<script type="text/javascript">
 		$(document).ready(function(){
-		    var maxField = 10; //Input fields increment limitation
+		    var maxField = 5; //Input fields increment limitation
 		    var addButton = $('#add'); //Add button selector
 		    var removeButton = $('#remove');
 		    var wrapper = $('#words');
-		    var fieldHTML = '<input type="text" class = "form-control" name="goodWords[]" placeholder = "Word"/>'; //New input field html 
+		    var fieldHTML = '<input onkeydown="return alphaOnly(event);" type="text" class = "form-control" name="goodWords[]" placeholder = "Word"/>'; //New input field html 
 		    var x = 1; //Initial field counter is 1
 		    
 		    //Once add button is clicked
@@ -84,9 +85,12 @@
 		    		$(wrapper).find('input:last').remove()
 		    	}
 		    });
-
-
 		});
+
+		function alphaOnly(event) {
+			var key = event.keyCode;
+			return ((key >= 65 && key <= 90) || key == 8 || key == 13 || key == 9);
+		};
 	</script>
 </body>
 

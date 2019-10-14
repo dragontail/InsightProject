@@ -10,9 +10,11 @@ from pyspark.sql.types import *
 from pyspark.sql.functions import to_timestamp, count, avg, sum
 import psycopg2
 
-# gather lines from the corresponding file
-#	filename: string of the name of the file
-#	return: a list of lines from the file
+'''
+gather lines from the corresponding file
+	filename: string of the name of the file
+	return: a list of lines from the file
+'''
 def readFile(filename):
 	try:
 		file = open(filename, "r")
@@ -27,10 +29,11 @@ def readFile(filename):
 	file.close()
 	return lines
 
-
-# create a Spark Context with the proper Spark Configurations
-#	credentials: a list of the AWS credentials
-#	return: a SparkContext object with configurations determined by credentials
+'''
+create a Spark Context with the proper Spark Configurations
+	credentials: a list of the AWS credentials
+	return: a SparkContext object with configurations determined by credentials
+'''
 def configureSpark(credentials):
 	accessKey = credentials[0]
 	secretKey = credentials[1]
@@ -53,16 +56,18 @@ def configureSpark(credentials):
 	return sc
 
 
-# helper function to map the RDD
-#	rddLine: a string of the current webpage's contents
-#	dictionary: a dictionary of words to look for
-#	stopWords: a dictionary of stop words that should be ignored
-#	return: a list of tuples of the format:
-#			( 
-#				date, 	 -> the date
-#				word, 	 -> the words that are found
-#				count 	 -> the frequency of said word
-#			)
+'''
+helper function to map the RDD
+	rddLine: a string of the current webpage's contents
+	dictionary: a dictionary of words to look for
+	stopWords: a dictionary of stop words that should be ignored
+	return: a list of tuples of the format:
+			( 
+				date, 	 -> the date
+				word, 	 -> the words that are found
+				count 	 -> the frequency of said word
+			)
+'''
 def count(dictionary, stopWords, rddLine):
 	webpage = rddLine.split("\r\n")[0].replace("'", "")
 	if webpage == "WARC/1.0":
@@ -86,10 +91,12 @@ def count(dictionary, stopWords, rddLine):
 
 	return [(date, k, v) for k, v in occurrences.items()]
 
-# once we have our data from the files, store it into PostgreSQL database
-#	df: the dataframe containing the frequencies of words
+'''
+once we have our data from the files, store it into PostgreSQL database
+	df: the dataframe containing the frequencies of words
+'''
 def databaseStore(df):
-	postgresCredentials = readFile("../database.txt")
+	postgresCredentials = readFile("/home/ubuntu/InsightProject/database.txt")
 	host = postgresCredentials[0]
 	database = postgresCredentials[2]
 	password = postgresCredentials[3]
@@ -104,16 +111,18 @@ def databaseStore(df):
 
 	df.write.option("batchSize", 100000).jdbc(
 		url = "jdbc:{}".format(url),
-		table = "frequenciestwo",
+		table = "frequenciesthree",
 		mode = "append",
 		properties = properties)
 
 
-# perform the collecting of the text files per month
-#	sc: the SparkContext that will be performing the operations
-#	monthlyPaths: the URL that leads to the corresponding month's files
-#	dictionary: a dictionary of words to find
-#	stopWords: a dictionary of stop words to ignore
+'''
+perform the collecting of the text files per month
+	sc: the SparkContext that will be performing the operations
+	monthlyPaths: the URL that leads to the corresponding month's files
+	dictionary: a dictionary of words to find
+	stopWords: a dictionary of stop words to ignore
+'''
 def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 	directory = sc.textFile(monthlyPaths)
 	monthlyFiles = directory.collect()
@@ -144,26 +153,29 @@ def monthlyReading(sc, monthlyPaths, dictionary, stopWords):
 
 
 def main():
+	path = "/home/ubuntu/InsightProject"
+
 	if len(sys.argv) == 1:
 		print("There needs to be an index for the month.")
 		return
 
-	credentials = readFile("../credentials.txt")
+	credentials = readFile("{}/credentials.txt".format(path))
 	monthIndex = int(sys.argv[1])
 
 	sc = configureSpark(credentials)
 	spark = SparkSession.builder.appName("test").getOrCreate()
 
-	monthlyPaths = readFile("paths.config")
-	dictionaryWords = {line : 0 for line in readFile("words_alpha.txt")}
-	stopWords = {line : 0 for line in readFile("stop_words.txt")}
+	monthlyPaths = readFile("{}/spark/paths.config".format(path))
+	stopWords = {line : 0 for line in readFile("{}/spark/stop_words.txt".format(path))}
 
 	if len(sys.argv) == 3:
 		word = {sys.argv[2] : 0 }
 		monthlyReading(sc, monthlyPaths[monthIndex], word, stopWords)
 		return
 	elif len(sys.argv) == 2:
+		dictionaryWords = {line : 0 for line in readFile("{}/spark/words_alpha.txt".format(path))}
 		monthlyReading(sc, monthlyPaths[monthIndex], dictionaryWords, stopWords)
+
 
 if __name__ == "__main__":
     main()

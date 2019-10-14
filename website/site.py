@@ -2,17 +2,19 @@ from flask import Blueprint, Flask, render_template, request
 import psycopg2
 import pandas as pd
 import sys
+import subprocess
+from airflow import DAG
+from airflow.operators.bash_operator import BashOperator
+from airflow.operators.email_operator import EmailOperator
+from datetime import datetime, timedelta
 
-sys.path.insert(1, '../')
+app = Flask(__name__)
 
-from airflowjobs.monthly_process import schedule
-from airflowjobs.email import email
-
-server = Flask(__name__)
-
-# gather lines from the corresponding file
-#	filename: string of the name of the file
-#	return: a list of lines from the file
+'''
+ gather lines from the corresponding file
+	filename: string of the name of the file
+	return: a list of lines from the file
+'''
 def readFile(filename):
 	try:
 		file = open(filename, "r")
@@ -28,13 +30,13 @@ def readFile(filename):
 	return lines
 
 
-databaseCredentials = readFile("../database.txt")
+databaseCredentials = readFile("/home/ubuntu/InsightProject/database.txt")
 host = databaseCredentials[1]
 database = databaseCredentials[2]
 password = databaseCredentials[3]
 
-dictionaryWords = {line : 0 for line in readFile("../spark/words_alpha.txt")}
-stopWords = {line : 0 for line in readFile("../spark/stop_words.txt")}
+dictionaryWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/spark/words_alpha.txt")}
+stopWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/spark/stop_words.txt")}
 
 connection = psycopg2.connect(
 	host = host, 
@@ -44,13 +46,13 @@ connection = psycopg2.connect(
 )
 
 # main webpage
-@server.route('/')
+@app.route('/')
 def default():
 	return render_template("main.html")
 
 
 # user submits their words
-@server.route('/submit', methods = ['GET', 'POST'])
+@app.route('/submit', methods = ['GET', 'POST'])
 def submit():
 	words = request.form.getlist('goodWords[]')
 
@@ -60,18 +62,17 @@ def submit():
 
 	cursor = connection.cursor()
 
-
 	for word in words:
 		if word == "":
 			continue
-			
+
 		if word in stopWords:
 			stops.append(word)
 			continue
 
 		query = '''
 		 	SELECT COUNT(*) FROM frequenciesthree WHERE word = '{}'
-		'''.format(word)
+		'''.format(word.lower())
 
 		cursor.execute(query)
 		count = cursor.fetchall()[0][0]
@@ -81,13 +82,7 @@ def submit():
 		else:
 			badWords.append(word)
 
-		# if word.lower() not in dictionaryWords:
-		# 	badWords.append(word)
-		# elif word.lower() in dictionaryWords: 
-		# 	goodWords.append(word)
 
-	# print(badWords)
-	# print(goodWords)
 	if len(badWords) > 0 or len(stops) > 0:
 		cursor.close()
 		return render_template('submit.html', 
@@ -102,17 +97,12 @@ def submit():
 
 	for word in goodWords:
 		query = '''
-			SELECT to_char(to_timestamp(month::text, 'MM'), 'Mon'), \
-			 		SUM(f) AS frequency
-			FROM (
-				SELECT SUM(frequency) AS f, EXTRACT(MONTH FROM date) AS month
-				FROM frequenciesthree
-				WHERE word = '{}'
-				GROUP BY EXTRACT(MONTH FROM date)
-			) AS test
-			GROUP BY month
-			ORDER BY month;
-		'''.format(word)
+			SELECT to_char(date, 'Mon') AS month, SUM(frequency) AS frequency, EXTRACT(MONTH FROM DATE) AS number
+			FROM frequenciesthree
+			WHERE word = '{}'
+			GROUP BY month, number
+			ORDER BY number;
+		'''.format(word.lower())
 
 		cursor.execute(query)
 
@@ -137,21 +127,30 @@ def submit():
 		min = smallestValue)
 
 
-# when the user chooses to schedule a new search job with their words
-@server.route('/schedule', methods = ['GET', 'POST'])
+'''
+	when a user chooses to schedule a new job with their words
+	insert rows into requests table so airflow will detect it
+'''
+@app.route('/schedule', methods = ['GET', 'POST'])
 def airflowScheduler():
 	words = request.form.getlist('badWords[]')
 	email = request.form.get('email')
-	print(email)
-	print(words)
-	# schedule(words)
+	cursor = connection.cursor()
+	for word in words:
+		query = """INSERT INTO requests VALUES ('{}', '{}');
+		""".format(word, email)
 
+		cursor.execute(query)
+		connection.commit()
+
+
+	cursor.close()
 	return render_template('schedule.html',
-		words = words)
-
+		words = words,
+		email = email)
 
 def main():
-	server.run(host = "0.0.0.0", port = 8000, debug = True)
+	app.run(host = "0.0.0.0", port = 80, debug = True)
 
 if __name__ == "__main__":
 	main()

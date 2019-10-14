@@ -1,5 +1,4 @@
 credentials.txt
 database.txt
-database/
 spark/*.txt
-spark/spell.py
+airflowjobs/send_email.py
