@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+	<!-- <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.min.js'></script> -->
+	<script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/1.0.2/Chart.min.js'></script>
+
+
+	<title>WordWideWeb</title>
+	<style>
+		body {
+		}
+		#logo {
+			text-align:center;
+		}
+		#message {
+			margin-left: auto;
+			margin-right: auto;
+			width: 60%;
+		}
+		#legend {
+			position:fixed;
+			right: 25%;
+			top: 20%;
+		}
+		canvas {
+			position: relative;
+			left: 15%;
+		}
+	</style>
+</head>
+
+<body>
+	<div id = "top">
+		<h1 id = "logo">WordWideWeb</h1>
+	</div>
+	<script>
+      	// draw line graph
+      	function showGraph() {
+      		// line graph data
+	    	var colors = [
+	    		"rgba(0, 0, 220, 1)",		// blue
+	    		"rgba(252, 190, 3, 1)",		// orange
+	    		"rgba(173, 90, 224, 1)",	// purple
+	    		"rgba(182, 250, 22, 1)",	// green
+	    		"rgba(242, 10, 180, 1)",	// pink
+	    		"rgba(64, 242, 255, 1)",	// cyan
+	    		"rgba(237, 199, 235, 1)",	// light pink
+	    		"rgba(255, 249, 79, 1)",	// yellow
+	    		"rgba(0, 0, 0, 1)", 		// black
+	    		"rgba(222, 80, 78, 1)"		// red
+	    	];
+
+	    	var fill = [ 
+	    		"rgba(0, 0, 220, 0)",
+	    		"rgba(252, 190, 3, 0)",
+	    		"rgba(173, 90, 224, 0)",
+	    		"rgba(182, 250, 22, 0)",
+	    		"rgba(242, 10, 180, 0)",
+	    		"rgba(64, 242, 255, 0)",
+	    		"rgba(237, 199, 235, 0)",	
+	    		"rgba(255, 249, 79, 0)",
+	    		"rgba(0, 0, 0, 0)",
+	    		"rgba(222, 80, 78, 0)"
+	    	];
+
+	    	var lineData = {
+	        	labels : [
+	        		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	        		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+	        	],
+	        	datasets : [
+	        	{% for i in range(frequencies|length) %}
+	        		{
+	        			label : "{{ words[i] }}",
+	        			fillColor: fill[{{i}}],
+	                    strokeColor: colors[{{i}}],
+	                    pointColor: colors[{{i}}],
+	                    pointStrokeColor: "#fff",
+	                    pointHighlightStroke: colors[{{i}}],
+	        			data : [
+	        			{% for list in frequencies[i] %}
+	        				{{ list[1] }},
+	        			{% endfor %}
+	        			]
+	        		},
+	        	{% endfor %},
+	        	]
+	      	};
+	      	var options = {
+	        	scales: {
+		            yAxes: [{
+		            	ticks: {
+		            		beginAtZero: true
+		            	},
+		                scaleLabel: {
+		                    display: true,
+		                    labelString: 'Occurrences',
+	                    	fontSize: 20 
+			            }
+	            	}]            
+		        }
+	        };	
+	      	var ctx = document.getElementById("line").getContext("2d");
+	      	// var lineGraph = new Chart(ctx, {
+	      	// 	type: 'line',
+	      	// 	data: lineData,
+	      	// 	options: options
+	      	// });
+
+		    var legend = document.getElementById("legend");
+		    {% for i in range(words|length) %}
+		    	var box = document.createElement("span");
+		    	box.innerText = "   ";
+		    	box.style.backgroundColor = colors[{{i}}];
+		    	box.style.padding = "5px"
+		    	var name = document.createElement("span");
+		    	name.innerText = "{{words[i]}}";
+		    	legend.appendChild(box);
+		    	legend.appendChild(name);
+		    	legend.appendChild(document.createElement("br"));
+		    	legend.appendChild(document.createElement("br"));
+		    {% endfor %}
+
+	      	var lineGraph = new Chart(ctx).Line(lineData, {    
+	        	scaleOverride: false,
+		        scaleSteps: 10,
+		        scaleStepWidth: Math.ceil({{ max }} / 10),
+		        scaleStartValue: Math.ceil({{ min }}),
+		        scaleEndValue: Math.ceil({{ max }} * 1.1),
+		        scaleShowVerticalLines: true,
+		        scaleShowGridLines : true,
+		        barShowStroke : true,
+		        scaleShowLabels: true,
+		        bezierCurve: true
+		    });
+	    }      	
+    </script>
+	{% if invalidWords is defined %}
+	<form action = "/submit" method = "POST">
+		<div id = "message">
+			{% if invalidWords|length > 0 %}
+			The following words are not in the database right now: 
+			{% for i in range(invalidWords|length - 1) %} 
+				<span name = "badWords[]">{{ invalidWords[i] }},</span>
+			{% endfor %}
+				<span name = "badWords[]">{{ invalidWords[invalidWords|length - 1] }}</span>
+			<br />
+			{% endif %}
+			{% if goodWords|length > 0 %}
+			The following words are good for querying:<br />
+			{% for i in range(goodWords|length - 1) %}
+				<input type = "text" style = "display:none;" name = "goodWords[]" value = "{{ goodWords[i] }}">
+				<span name = "goodWords[]">{{ goodWords[i] }},</span>
+			{% endfor %}
+				<input type = "text" style = "display:none;" name = "goodWords[]" value = "{{ goodWords[goodWords|length - 1] }}" />
+				<span name = "goodWords[]">{{ goodWords[goodWords|length - 1] }}</span>
+			<br />			
+			{% endif %}
+			{% if stopWords|length > 0 %}
+			<div id = "stopWords">
+				The following words are stop words and are not available for querying:
+			{% for i in range(stopWords|length) %}
+				{{ stopWords[i] }} 
+			{% endfor %}
+			</div>
+			{% endif %}
+			What do you want to do about this?
+			<br />
+			{% if goodWords|length > 0 %}
+			<button id = "display" class = "btn btn-default" type = "submit">Show graph with valid words</button>
+			{% endif %}
+		</div>
+	</form>
+	<form action = "/schedule" method = "POST">
+		{% for i in range(invalidWords|length - 1) %} 
+			<input type = "text", style = "display:none;", name = "badWords[]", value = "{{ invalidWords[i] }}" />
+		{% endfor %}
+			<input type = "text", style = "display:none;", name = "badWords[]", value = "{{ invalidWords[invalidWords|length - 1] }}">
+			<br />
+		<div id = "message">
+			Schedule a job to search for these invalid words - enter an email and you will be notified when the job is done.
+			<br />
+		<input type = "email" name = "email" placeholder = "test@example.com" /><br />
+		<button id = "schedule" class = "btn btn-default" type = "submit">Schedule</button>
+		</div>
+	</form>
+	{% else %}
+	<canvas id="line" width="600" height="400"></canvas>
+	<div id = "legend">
+	</div>
+	<script>
+		window.onload = showGraph();
+	</script>
+	{% endif %}
+	<form action = "/">
+		<div id = "message">
+			<button id = "back" class = "btn btn-default" href = "/">Go back</button>
+		</div>
+	</form>
+</body>
+
+</html>

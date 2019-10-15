@@ -1,1 +1,4 @@
 credentials.txt
+database.txt
+spark/*.txt
+airflowjobs/send_email.py
