@@ -25,7 +25,7 @@ Data was pulled from S3, word frequencies were computed through Spark and stored
 The structure of the directory is as follows:
 ```
 WordWideWeb
-    |- spark
+    |- src
         |- ingestion.py
         |- paths.config
     |- airflow
@@ -49,6 +49,8 @@ When the user schedules a job, a row will be added with the corresponding word a
      - `wget http://bitbucket.org/jmurty/jets3t/downloads/jets3t-0.9.4.zip`
      - `unzip ./jets3t-0.9.4.zip`
      - `cp ./jets3t-0.9.4/jars/jets3t-0.9.4.jar $SPARK_HOME/jars`
+   - Install packages through requirements.txt.
+   - Configure credentials in credentials.txt file in the main folder.
      
 2. Set up EC2 instances Part 2 (Database instance)
    - PostgreSQL database will be installed on a separate m4.large EC2 instance
@@ -62,12 +64,26 @@ When the user schedules a job, a row will be added with the corresponding word a
 3. Set up Airflow
    - Install Airflow through `pip3 install apache-airflow`
    - Make sure the DAG definition file (monthly_process.py) is moved to the airflow/dags folder, and run the webserver/scheduler
+   - `airflow initdb`
    - `airflow webserver`
    - `airflow scheduler`
 
 4. Run Flask app
    - Make sure the dependencies have been installed in the corresponding EC2 instance where the website will be run.
    - Under root user in the main folder run `gunicorn -b 0.0.0.0:80 -w 4 website.site:app`
+  
+5. Manually submit Spark jobs (if you want)
+   - cd to the src folder and run the following command:
+   ```
+        spark-submit
+		--master spark://<master node hostname>:7077
+		--conf spark.driver.maxResultSize=6g
+		--executor-memory 4g
+		--driver-memory 6g
+		--executor-cores 6
+		--jars /home/ubuntu/postgresql-42.2.8.jar
+		/home/ubuntu/WordWideWeb/src/ingestion.py
+   ```
    
 ### Website
 ![Website](images/website.png)
