@@ -71,23 +71,24 @@
 	    		"rgba(222, 80, 78, 0)"
 	    	];
 
+	    	i = 0;
 	    	var lineData = {
 	        	labels : [
 	        		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 	        		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	        	],
 	        	datasets : [
-	        	{% for i in range(frequencies|length) %}
+	        	{% for word, freq in frequencies.items() %}
 	        		{
-	        			label : "{{ words[i] }}",
-	        			fillColor: fill[{{i}}],
-	                    strokeColor: colors[{{i}}],
-	                    pointColor: colors[{{i}}],
+	        			label : "{{ word }}",
+	        			fillColor: fill[i],
+	                    strokeColor: colors[i],
+	                    pointColor: colors[i],
 	                    pointStrokeColor: "#fff",
-	                    pointHighlightStroke: colors[{{i}}],
+	                    pointHighlightStroke: colors[i++],
 	        			data : [
-	        			{% for list in frequencies[i] %}
-	        				{{ list[1] }},
+	        			{% for f in freq %}
+	        				{{ f[1] }},
 	        			{% endfor %}
 	        			]
 	        		},
