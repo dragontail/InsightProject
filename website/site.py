@@ -35,8 +35,8 @@ host = databaseCredentials[1]
 database = databaseCredentials[2]
 password = databaseCredentials[3]
 
-dictionaryWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/spark/words_alpha.txt")}
-stopWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/spark/stop_words.txt")}
+dictionaryWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/src/words_alpha.txt")}
+stopWords = {line : 0 for line in readFile("/home/ubuntu/InsightProject/src/stop_words.txt")}
 
 connection = psycopg2.connect(
 	host = host, 
@@ -75,7 +75,7 @@ def submit():
 		'''.format(word.lower())
 
 		cursor.execute(query)
-		count = cursor.fetchall()[0][0]
+		count = cursor.fetchone()[0]
 
 		if count > 0:
 			goodWords.append(word)
@@ -91,7 +91,7 @@ def submit():
 			stopWords = stops)
 
 
-	wordFrequencies = []
+	wordFrequencies = {}
 	largestValue = 0
 	smallestValue = sys.maxsize
 
@@ -114,7 +114,7 @@ def submit():
 			smallestValue = min(smallestValue, tup[1])
 			freq.append(list(tup))
 
-		wordFrequencies.append(freq)
+		wordFrequencies.setdefault(word, freq)
 
 	cursor.close()
 
@@ -150,7 +150,7 @@ def airflowScheduler():
 		email = email)
 
 def main():
-	app.run(host = "0.0.0.0", port = 80, debug = True)
+	app.run(host = "0.0.0.0", port = 8000, debug = True)
 
 if __name__ == "__main__":
 	main()

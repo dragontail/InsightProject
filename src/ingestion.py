@@ -165,15 +165,15 @@ def main():
 	sc = configureSpark(credentials)
 	spark = SparkSession.builder.appName("test").getOrCreate()
 
-	monthlyPaths = readFile("{}/spark/paths.config".format(path))
-	stopWords = {line : 0 for line in readFile("{}/spark/stop_words.txt".format(path))}
+	monthlyPaths = readFile("{}/src/paths.config".format(path))
+	stopWords = {line : 0 for line in readFile("{}/src/stop_words.txt".format(path))}
 
 	if len(sys.argv) == 3:
 		word = {sys.argv[2] : 0 }
 		monthlyReading(sc, monthlyPaths[monthIndex], word, stopWords)
 		return
 	elif len(sys.argv) == 2:
-		dictionaryWords = {line : 0 for line in readFile("{}/spark/words_alpha.txt".format(path))}
+		dictionaryWords = {line : 0 for line in readFile("{}/src/words_alpha.txt".format(path))}
 		monthlyReading(sc, monthlyPaths[monthIndex], dictionaryWords, stopWords)
 
 

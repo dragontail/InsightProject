@@ -1,25 +1,6 @@
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.email_operator import EmailOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.http_operator import SimpleHttpOperator
-from airflow.operators.sensors import HttpSensor, SqlSensor
-from airflow.utils.email import send_email
-from datetime import datetime, timedelta
-import sys
 import psycopg2
+import sys
 import subprocess
-
-defaultArgs = {
-	"owner": "Nicholas",
-	"retries": 1,
-	"retry_delay": timedelta(minutes = 5),
-	"start_date": datetime.now(),
-	"depends_on_past": False,
-	"email": ["nickjpena5@gmail.com"],
-	"email_on_failure": True
-}
-
 
 '''
  gather lines from the corresponding file
@@ -63,17 +44,17 @@ def schedule():
 	"""
 
 	cursor.execute(query)
-	results = cursor.fetchall()
+	results = cursor.fetchone()
 
-	word = results[0][0]
-	email = results[0][1]
+	word = results[0]
+	email = results[1]
 
 	query = """
 		SELECT COUNT(*) FROM frequenciesthree WHERE word = '{}';
 		""".format(word.lower())
 
 	cursor.execute(query)
-	results = cursor.fetchall()[0][0]
+	results = cursor.fetchone()[0]
 
 	if results != 0:
 		return 
@@ -93,7 +74,7 @@ def schedule():
 			--driver-memory 6g
 			--executor-cores 6
 			--jars /home/ubuntu/postgresql-42.2.8.jar
-			/home/ubuntu/InsightProject/spark/ingestion.py '''
+			/home/ubuntu/InsightProject/src/ingestion.py '''
 
 	months = [
 		"January", "February", "March", "April", "May", "June",
@@ -103,8 +84,6 @@ def schedule():
 	for i in range(len(months)):
 		bashCommand = template + str(i) + " " + word
 		process = subprocess.check_call(bashCommand.split())
-
-		output, error = process.communicate()
 
 	cursor.close()
 	connection.close()
@@ -118,24 +97,3 @@ def schedule():
  		 	 """.format(word),
 		)
 
-
-dag_id = "monthly_processing"
-dag = DAG(dag_id = dag_id,
-	 	default_args = defaultArgs,
-	 	schedule_interval = timedelta(hours = 7))
-
-sql_sensor = SqlSensor(
-		task_id = "check_for_requests",
-		conn_id = "insight",
-		sql = "SELECT * FROM requests;",
-		poke_interval = 30,
-		dag = dag
-	)
-
-python_task = PythonOperator(
-		task_id = "python_task",
-		python_callable = schedule,
-		dag = dag
-	)
-
-python_task << sql_sensor
